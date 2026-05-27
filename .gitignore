@@ -7,3 +7,4 @@ data/*.db-wal
 .env.local
 coverage/
 logs/
+.secrets
