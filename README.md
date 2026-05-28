@@ -4,7 +4,7 @@ A production-ready starting point for Bun + Hono services with:
 
 - **Hono** — fast, lightweight HTTP framework
 - **Drizzle ORM** — type-safe SQLite with schema-push workflow
-- **OpenTelemetry** — traces, metrics, and logs via OTLP (disabled if `SIGNOZ_ENDPOINT` is unset)
+- **OpenTelemetry** — traces, metrics, and logs via OTLP; HTTP requests auto-traced via `@hono/otel`; graceful shutdown on `SIGTERM`/`SIGINT` (disabled if `SIGNOZ_ENDPOINT` is unset)
 - **Biome** — lint + format
 - **Docker** — `oven/bun:1-alpine`, layer-cached, `APP_VERSION` baked in
 - **GitHub Actions** — test → build (GHCR) → staging → production, with rollback
