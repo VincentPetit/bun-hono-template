@@ -1,13 +1,17 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { loadConfig } from "../../src/lib/config";
 
-const saved = { ...process.env };
+const KEYS = ["PORT", "DATABASE_PATH", "SIGNOZ_ENDPOINT", "APP_VERSION", "NODE_ENV", "APPLICATION_NAME", "ENVIRONMENT"];
+let saved: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+});
 
 afterEach(() => {
-  // Restore env after each test
-  for (const key of ["PORT", "DATABASE_PATH", "SIGNOZ_ENDPOINT", "APP_VERSION", "NODE_ENV"]) {
-    if (key in saved) process.env[key] = saved[key];
-    else delete process.env[key];
+  for (const key of KEYS) {
+    if (saved[key] === undefined) delete process.env[key];
+    else process.env[key] = saved[key];
   }
 });
 
@@ -40,6 +44,11 @@ describe("loadConfig", () => {
 
   test("throws on invalid PORT", () => {
     process.env.PORT = "99999";
+    expect(() => loadConfig()).toThrow("Invalid PORT");
+  });
+
+  test("throws on non-numeric PORT", () => {
+    process.env.PORT = "abc";
     expect(() => loadConfig()).toThrow("Invalid PORT");
   });
 });
