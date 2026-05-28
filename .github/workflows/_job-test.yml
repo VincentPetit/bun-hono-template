@@ -4,6 +4,7 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -11,7 +12,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: "1.x"
 
       - name: Install dependencies
         run: bun install
