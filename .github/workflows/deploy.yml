@@ -1,0 +1,42 @@
+name: CI/CD
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  tests:
+    uses: ./.github/workflows/_job-test.yml
+
+  docker-build:
+    needs: tests
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_job-build.yml
+    with:
+      context: .
+      build-args: APP_VERSION=${{ github.sha }}
+    secrets: inherit
+
+  release-staging:
+    needs: docker-build
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/_job-deploy.yml
+    with:
+      environment: staging
+    secrets: inherit
+
+  release:
+    needs: [docker-build, release-staging]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/_job-deploy.yml
+    with:
+      environment: production
+    secrets: inherit

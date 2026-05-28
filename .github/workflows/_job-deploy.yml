@@ -1,0 +1,94 @@
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Deployment environment (staging or production)"
+        required: true
+        type: string
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+
+    steps:
+      - name: Checkout repository
+        if: inputs.environment == 'staging'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update staging branch
+        if: inputs.environment == 'staging'
+        run: git push origin HEAD:refs/heads/staging --force
+
+      - name: Log in to GHCR
+        if: inputs.environment == 'staging'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Record current staging image (for rollback)
+        if: inputs.environment == 'staging'
+        id: previous
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}"
+          IMAGE="${IMAGE,,}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          PREV=$(docker buildx imagetools inspect "${IMAGE}:staging" 2>/dev/null \
+            | awk '/^Digest:/{print $2}' | head -1 || true)
+          echo "digest=${PREV}" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREV" ]; then
+            echo "Previous staging image: ${IMAGE}@${PREV}"
+          else
+            echo "No existing staging image found (first deployment)"
+          fi
+
+      - name: Trigger deployment webhook
+        if: env.DEPLOY_WEBHOOK_URL != ''
+        run: wget -q --post-data= "$DEPLOY_WEBHOOK_URL"
+
+      - name: Verify deployment
+        id: verify
+        if: vars.GATEWAY_URL != ''
+        env:
+          GATEWAY_URL: ${{ vars.GATEWAY_URL }}
+          EXPECTED: ${{ github.sha }}
+        run: |
+          MAX_RETRIES=30
+          RETRY_INTERVAL=10
+          for i in $(seq 1 $MAX_RETRIES); do
+            ACTUAL=$(wget -qO- "$GATEWAY_URL/health" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)
+            if [ "$ACTUAL" = "$EXPECTED" ]; then
+              echo "✓ Deployment verified (commit $ACTUAL)"
+              exit 0
+            fi
+            echo "Attempt $i/$MAX_RETRIES: got '${ACTUAL:-<no response>}', expected '$EXPECTED'"
+            sleep $RETRY_INTERVAL
+          done
+          echo "✗ Deployment verification timed out after $((MAX_RETRIES * RETRY_INTERVAL))s"
+          exit 1
+
+      - name: Rollback — retag previous staging image
+        if: always() && steps.verify.outcome == 'failure' && inputs.environment == 'staging' && steps.previous.outputs.digest != ''
+        env:
+          IMAGE: ${{ steps.previous.outputs.image }}
+          PREV_DIGEST: ${{ steps.previous.outputs.digest }}
+        run: |
+          echo "Rolling back to ${IMAGE}@${PREV_DIGEST}"
+          docker buildx imagetools create \
+            --tag "${IMAGE}:staging" \
+            "${IMAGE}@${PREV_DIGEST}"
+
+      - name: Rollback — retrigger deployment webhook
+        if: always() && steps.verify.outcome == 'failure' && inputs.environment == 'staging' && steps.previous.outputs.digest != '' && env.DEPLOY_WEBHOOK_URL != ''
+        run: |
+          echo "Re-triggering deployment with previous image..."
+          wget -q --post-data= "$DEPLOY_WEBHOOK_URL"

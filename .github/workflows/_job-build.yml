@@ -1,0 +1,87 @@
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: "Docker build context path"
+        type: string
+        default: "."
+      image-suffix:
+        description: "Suffix appended to the repo-derived image name (e.g. /worker)"
+        type: string
+        default: ""
+      build-args:
+        description: "Build args passed to docker buildx (newline-separated KEY=VALUE)"
+        type: string
+        default: ""
+      changed-path:
+        description: "If set, only build when files under this path changed (leave empty to always build)"
+        type: string
+        default: ""
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - name: Check if rebuild is needed
+        id: changed
+        env:
+          CHANGED_PATH: ${{ inputs.changed-path }}
+        run: |
+          if [ -z "$CHANGED_PATH" ]; then
+            echo "result=true" >> $GITHUB_OUTPUT
+          elif git log --name-only HEAD~2..HEAD --format= | grep -q "^${CHANGED_PATH}"; then
+            echo "result=true" >> $GITHUB_OUTPUT
+          else
+            echo "result=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set image name and tags
+        id: meta
+        if: steps.changed.outputs.result == 'true'
+        env:
+          IMAGE_SUFFIX: ${{ inputs.image-suffix }}
+          REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_REF: ${{ github.ref }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          IMAGE="ghcr.io/${REPOSITORY}${IMAGE_SUFFIX}"
+          IMAGE="${IMAGE,,}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            if [ "$GIT_REF" = "refs/heads/${DEFAULT_BRANCH}" ]; then
+              echo "${IMAGE}:latest"
+              echo "${IMAGE}:main"
+              echo "${IMAGE}:staging"
+            else
+              echo "${IMAGE}:staging"
+            fi
+            echo "${IMAGE}:sha-${GIT_SHA}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        if: steps.changed.outputs.result == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.changed.outputs.result == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: ${{ inputs.build-args }}
