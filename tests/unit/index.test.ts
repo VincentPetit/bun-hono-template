@@ -21,11 +21,12 @@ describe("GET /", () => {
 });
 
 describe("GET /health", () => {
-  test("returns ok: true and version string", async () => {
+  test("returns ok: true and non-empty version string", async () => {
     const res = await app.fetch(new Request("http://localhost/health"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; version: string };
     expect(body.ok).toBe(true);
     expect(typeof body.version).toBe("string");
+    expect(body.version.length).toBeGreaterThan(0);
   });
 });
