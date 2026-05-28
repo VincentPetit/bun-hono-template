@@ -1,4 +1,3 @@
-import "./instrumentation";
 import { httpInstrumentationMiddleware } from "@hono/otel";
 import { Hono } from "hono";
 import { shutdownOtel } from "./instrumentation";

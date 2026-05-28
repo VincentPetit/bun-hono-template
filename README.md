@@ -23,6 +23,7 @@ bun run dev        # http://localhost:3000
 - [ ] Add your routes to `src/index.ts`
 - [ ] Add project-specific env vars to `src/lib/config.ts` and `.env.example`
 - [ ] Define your Drizzle schema in `src/db/schema.ts`, then run `bun run db:push`
+- [ ] If you don't need a database, remove `drizzle-orm` from `package.json`, delete `src/db/` and `drizzle.config.ts`
 - [ ] In GitHub repo Settings → Environments, create `staging` and `production` environments
 - [ ] Set `DEPLOY_WEBHOOK_URL` secret in each environment (your deploy trigger URL)
 - [ ] Set `GATEWAY_URL` variable in each environment (your service's public URL — used for health-check verification after deploy)
