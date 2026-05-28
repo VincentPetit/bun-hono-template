@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { loadConfig } from "../../src/lib/config";
 
-const KEYS = ["PORT", "DATABASE_PATH", "SIGNOZ_ENDPOINT", "APP_VERSION", "NODE_ENV", "APPLICATION_NAME", "ENVIRONMENT"];
+const KEYS = [
+  "PORT",
+  "DATABASE_PATH",
+  "SIGNOZ_ENDPOINT",
+  "APP_VERSION",
+  "NODE_ENV",
+  "APPLICATION_NAME",
+  "ENVIRONMENT",
+];
 let saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
